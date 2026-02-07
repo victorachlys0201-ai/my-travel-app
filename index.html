@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TravelHub Ultimate - 精准搜索修复版</title>
+    <title>TravelHub Ultimate - 功能全开修复版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -48,7 +48,7 @@
         <aside class="w-80 border-r bg-white flex flex-col shrink-0">
             <div class="p-4 border-b relative z-30">
                 <div class="relative">
-                    <input id="map-search" type="text" placeholder="🔍 输入地点(例如：上海人民广场)" 
+                    <input id="map-search" type="text" placeholder="🔍 输入地点(精确搜索已开启)" 
                            class="w-full px-4 py-3 bg-slate-100 border-none rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 outline-none transition font-medium">
                     <button onclick="clearSearch()" class="absolute right-3 top-2.5 text-slate-300 hover:text-slate-500 text-sm">✕</button>
                 </div>
@@ -92,8 +92,20 @@
 
     <div id="edit-modal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-[100] hidden flex items-center justify-center p-4">
         <div class="bg-white rounded-[2rem] w-full max-w-lg p-8 shadow-2xl animate-in zoom-in duration-200 flex flex-col max-h-[90vh]">
-            <h3 class="text-xl font-black mb-6 shrink-0">编辑行程</h3>
+            <h3 class="text-xl font-black mb-6 shrink-0">编辑行程内容</h3>
             <div class="space-y-4 overflow-y-auto pr-2 custom-scrollbar flex-1">
+                
+                <div class="relative group cursor-pointer" onclick="document.getElementById('img-upload').click()">
+                    <div id="img-preview-area" class="h-32 bg-slate-50 rounded-xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center hover:bg-white hover:border-indigo-300 transition overflow-hidden">
+                        <img id="edit-img-show" class="hidden w-full h-full object-cover">
+                        <div id="img-placeholder" class="text-center">
+                            <span class="text-2xl">📷</span>
+                            <p class="text-[10px] font-bold text-slate-400 mt-1">上传图片、车票或预订确认单</p>
+                        </div>
+                    </div>
+                    <input type="file" id="img-upload" accept="image/*" class="hidden" onchange="handleImageUpload(this)">
+                </div>
+
                 <div class="grid grid-cols-4 gap-2">
                     <button onclick="setEditCat('sight')" class="cat-btn p-2 rounded-xl text-[10px] font-bold border" data-cat="sight">景点</button>
                     <button onclick="setEditCat('food')" class="cat-btn p-2 rounded-xl text-[10px] font-bold border" data-cat="food">餐食</button>
@@ -101,7 +113,7 @@
                     <button onclick="setEditCat('activity')" class="cat-btn p-2 rounded-xl text-[10px] font-bold border" data-cat="activity">活动</button>
                 </div>
                 <div>
-                    <label class="text-[10px] font-black text-slate-400 uppercase block mb-1">时间段</label>
+                    <label class="text-[10px] font-black text-slate-400 uppercase block mb-1">计划时间</label>
                     <select id="det-slot" class="w-full px-3 py-2 bg-slate-50 rounded-lg outline-none font-bold text-sm text-slate-700 border border-slate-100">
                         <option value="morning">上午 (Morning)</option>
                         <option value="noon">中午 (Noon)</option>
@@ -112,13 +124,13 @@
                 <input id="det-name" type="text" class="w-full px-4 py-3 bg-slate-50 rounded-xl outline-none font-bold text-sm border border-slate-100" placeholder="地点名称">
                 <div class="grid grid-cols-2 gap-3">
                     <input id="det-cost" type="number" class="px-3 py-2 bg-slate-50 rounded-lg outline-none text-sm border border-slate-100" placeholder="费用 (¥)">
-                    <input id="det-dur" type="number" class="px-3 py-2 bg-slate-50 rounded-lg outline-none text-sm border border-slate-100" placeholder="游玩时长 (分)">
+                    <input id="det-dur" type="number" class="px-3 py-2 bg-slate-50 rounded-lg outline-none text-sm border border-slate-100" placeholder="时长 (分)">
                 </div>
-                <textarea id="det-note" rows="3" class="w-full px-4 py-3 bg-slate-50 rounded-xl outline-none resize-none text-xs border border-slate-100" placeholder="备注..."></textarea>
+                <textarea id="det-note" rows="3" class="w-full px-4 py-3 bg-slate-50 rounded-xl outline-none resize-none text-xs border border-slate-100" placeholder="在这里写下备注或攻略..."></textarea>
             </div>
             <div class="flex gap-3 mt-6">
                 <button onclick="closeModal()" class="flex-1 py-3 text-slate-400 font-bold text-xs">取消</button>
-                <button onclick="saveDetails()" class="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold text-xs shadow-lg">保存</button>
+                <button onclick="saveDetails()" class="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold text-xs shadow-lg">保存更改</button>
             </div>
         </div>
     </div>
@@ -141,10 +153,10 @@
     </div>
 
     <script>
-        let currentDay = 0, daysData = JSON.parse(localStorage.getItem('travel_v12_days')) || [[]];
-        let poiLibrary = JSON.parse(localStorage.getItem('travel_v12_lib')) || [];
-        let startDate = localStorage.getItem('travel_v12_start') || new Date().toISOString().split('T')[0];
-        let map, markers = [], editingId = null, tempCat = 'sight', isOptimizeMode = false, selectedForOpt = new Set();
+        let currentDay = 0, daysData = JSON.parse(localStorage.getItem('travel_v13_days')) || [[]];
+        let poiLibrary = JSON.parse(localStorage.getItem('travel_v13_lib')) || [];
+        let startDate = localStorage.getItem('travel_v13_start') || new Date().toISOString().split('T')[0];
+        let map, markers = [], editingId = null, tempCat = 'sight', tempImg = "", isOptimizeMode = false, selectedForOpt = new Set();
 
         window.onload = () => {
             document.getElementById('start-date').value = startDate;
@@ -156,7 +168,22 @@
             L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map);
         }
 
-        // --- 核心修复：精准搜索逻辑 ---
+        // --- 核心：图片处理函数 ---
+        window.handleImageUpload = (input) => {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    tempImg = e.target.result;
+                    const imgShow = document.getElementById('edit-img-show');
+                    imgShow.src = tempImg;
+                    imgShow.classList.remove('hidden');
+                    document.getElementById('img-placeholder').classList.add('hidden');
+                }
+                reader.readAsDataURL(input.files[0]);
+            }
+        };
+
+        // --- 搜索逻辑 ---
         function initSearch() {
             const input = document.getElementById('map-search');
             const resPanel = document.getElementById('search-results');
@@ -166,54 +193,32 @@
                 clearTimeout(timer);
                 const q = e.target.value.trim();
                 if (q.length < 2) { resPanel.classList.add('hidden'); return; }
-
                 timer = setTimeout(async () => {
-                    try {
-                        // 增加 addressdetails=1 以获取详细行政区划
-                        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=10&addressdetails=1&accept-language=zh-CN`);
-                        const data = await response.json();
-
-                        if (data.length > 0) {
-                            resPanel.innerHTML = data.map(it => {
-                                // 提取有用信息
-                                const name = it.display_name.split(',')[0];
-                                // 移除名称后的完整地址，增强分辨度
-                                const fullAddr = it.display_name; 
-                                
-                                return `
-                                    <div class="search-item p-4 flex flex-col gap-1" onclick="selectLocation('${name.replace(/'/g, "\\'")}', '${fullAddr.replace(/'/g, "\\'")}', ${it.lon}, ${it.lat})">
-                                        <div class="font-bold text-sm text-slate-800">${name}</div>
-                                        <div class="text-[10px] text-slate-500 leading-normal">📍 ${fullAddr}</div>
-                                    </div>`;
-                            }).join('');
-                            resPanel.classList.remove('hidden');
-                        } else {
-                            resPanel.innerHTML = '<div class="p-4 text-xs text-slate-400">未找到匹配地点，请尝试更具体的名称</div>';
-                            resPanel.classList.remove('hidden');
-                        }
-                    } catch (e) {
-                        console.error("搜索失败", e);
+                    const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=8&addressdetails=1&accept-language=zh-CN`);
+                    const data = await response.json();
+                    if (data.length > 0) {
+                        resPanel.innerHTML = data.map(it => {
+                            const name = it.display_name.split(',')[0];
+                            return `<div class="search-item p-4" onclick="selectLocation('${name.replace(/'/g, "\\'")}', '${it.display_name.replace(/'/g, "\\'")}', ${it.lon}, ${it.lat})">
+                                <div class="font-bold text-sm text-slate-800">${name}</div>
+                                <div class="text-[10px] text-slate-500">📍 ${it.display_name}</div>
+                            </div>`;
+                        }).join('');
+                        resPanel.classList.remove('hidden');
                     }
                 }, 500);
             });
         }
 
         window.selectLocation = (name, addr, lng, lat) => {
-            const newPOI = { id: Date.now().toString(), name, addr, lng, lat, cat: 'sight' };
-            poiLibrary.unshift(newPOI);
+            poiLibrary.unshift({ id: Date.now().toString(), name, addr, lng, lat, cat: 'sight' });
             renderLibrary();
             document.getElementById('search-results').classList.add('hidden');
             document.getElementById('map-search').value = "";
-            // 地图自动跳转到该位置
             map.flyTo([lat, lng], 15);
         };
 
-        window.clearSearch = () => {
-            document.getElementById('map-search').value = "";
-            document.getElementById('search-results').classList.add('hidden');
-        };
-
-        // --- 数据渲染 & 其他功能 ---
+        // --- UI 更新 (包含图片缩略图显示) ---
         function updateUI() {
             const slotNames = ['morning', 'noon', 'afternoon', 'evening'];
             const slotTitles = {'morning': '☀️ 上午', 'noon': '🍴 中午', 'afternoon': '🌇 下午', 'evening': '🌙 晚上'};
@@ -228,11 +233,10 @@
             document.getElementById('stat-day').innerText = currentDay + 1;
 
             slotNames.forEach(slot => {
-                container.innerHTML += `
-                    <div class="bg-white rounded-[1.5rem] p-5 shadow-sm border border-slate-100/50">
-                        <h3 class="font-black text-slate-300 text-xs mb-3 flex items-center gap-2 uppercase tracking-wider">${slotTitles[slot]}</h3>
-                        <div id="slot-${slot}" class="space-y-3 min-h-[40px]"></div>
-                    </div>`;
+                container.innerHTML += `<div class="bg-white rounded-[1.5rem] p-5 shadow-sm border border-slate-100/50 mb-4">
+                    <h3 class="font-black text-slate-300 text-xs mb-3 flex items-center gap-2 uppercase tracking-wider">${slotTitles[slot]}</h3>
+                    <div id="slot-${slot}" class="space-y-3 min-h-[40px]"></div>
+                </div>`;
             });
 
             daysData[currentDay].forEach((item) => {
@@ -241,112 +245,154 @@
                 if(catCosts[item.cat] !== undefined) catCosts[item.cat] += cost; else catCosts.activity += cost;
 
                 const card = document.createElement('div');
-                card.className = `flex gap-3 p-3 bg-white border border-slate-100 rounded-xl transition-all shadow-sm group ${isOptimizeMode ? 'cursor-pointer border-dashed' : ''}`;
+                card.className = `flex gap-3 p-3 bg-white border border-slate-100 rounded-xl transition-all shadow-sm group`;
                 
+                // 行程项中的图片展示逻辑
+                const imgThumb = item.img ? `<div class="w-14 h-14 shrink-0 rounded-lg overflow-hidden border border-slate-100 shadow-inner"><img src="${item.img}" class="w-full h-full object-cover"></div>` : '';
+
                 card.innerHTML = `
+                    ${imgThumb}
                     <div class="flex-1 min-w-0">
                         <div class="flex items-center gap-2 mb-1">
                             <span class="cat-${item.cat} text-[8px] font-black px-1.5 py-0.5 rounded uppercase">${item.cat}</span>
                             <h4 class="text-sm font-bold text-slate-800 truncate">${item.name}</h4>
                         </div>
-                        <div class="text-[9px] text-slate-400 truncate mb-1">📍 ${item.addr || '暂无详细地址'}</div>
+                        <div class="text-[9px] text-slate-400 truncate mb-1">📍 ${item.addr || ''}</div>
+                        ${item.note ? `<div class="text-[9px] text-slate-500 italic mb-2 line-clamp-1 opacity-80">“${item.note}”</div>` : ''}
                         <div class="flex gap-3 text-[10px] font-bold">
                             <span class="text-indigo-600">¥ ${item.cost || 0}</span>
                             <span class="text-slate-400">⏱ ${item.duration || 0}m</span>
                         </div>
                     </div>
-                    ${!isOptimizeMode ? `
                     <div class="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition">
                         <button onclick="openEdit('${item.id}')" class="p-1.5 bg-indigo-50 text-indigo-600 rounded">✎</button>
                         <button onclick="removeItem('${item.id}')" class="p-1.5 bg-red-50 text-red-400 rounded">✕</button>
-                    </div>` : ''}
-                `;
+                    </div>`;
                 document.getElementById(`slot-${item.slot || 'morning'}`).appendChild(card);
-                markers.push(L.marker([item.lat, item.lng]).addTo(map).bindPopup(`<b>${item.name}</b><br><small>${item.addr}</small>`));
+                markers.push(L.marker([item.lat, item.lng]).addTo(map).bindPopup(item.name));
             });
 
             document.getElementById('total-cost').innerText = dayTotal.toLocaleString();
             document.getElementById('cost-hotel').innerText = `¥${catCosts.hotel}`;
             document.getElementById('cost-food').innerText = `¥${catCosts.food}`;
             document.getElementById('cost-other').innerText = `¥${catCosts.activity + catCosts.sight}`;
-            
             if(markers.length > 0) map.fitBounds(new L.featureGroup(markers).getBounds().pad(0.3));
             saveToLocal();
         }
 
-        window.renderLibrary = () => {
-            document.getElementById('library-list').innerHTML = poiLibrary.map(p => `
-                <div class="p-3 border rounded-xl bg-white hover:border-indigo-300 transition">
-                    <h4 class="font-bold text-xs truncate">${p.name}</h4>
-                    <p class="text-[9px] text-slate-400 truncate mt-1">${p.addr}</p>
-                    <button onclick="addToDay('${p.id}')" class="mt-2 w-full py-1.5 bg-slate-900 text-white rounded-lg text-[10px] font-bold hover:bg-indigo-600">添加至 D${currentDay+1}</button>
-                </div>`).join('');
+        // --- 编辑逻辑 ---
+        window.openEdit = (id) => {
+            editingId = id;
+            const it = daysData[currentDay].find(x => x.id === id);
+            document.getElementById('det-name').value = it.name;
+            document.getElementById('det-slot').value = it.slot || 'morning';
+            document.getElementById('det-cost').value = it.cost || 0;
+            document.getElementById('det-dur').value = it.duration || 60;
+            document.getElementById('det-note').value = it.note || "";
+            tempImg = it.img || "";
+            tempCat = it.cat || 'sight';
+            
+            const imgShow = document.getElementById('edit-img-show');
+            const placeholder = document.getElementById('img-placeholder');
+            if(tempImg) {
+                imgShow.src = tempImg;
+                imgShow.classList.remove('hidden');
+                placeholder.classList.add('hidden');
+            } else {
+                imgShow.classList.add('hidden');
+                placeholder.classList.remove('hidden');
+            }
+            
+            setEditCat(tempCat);
+            document.getElementById('edit-modal').classList.remove('hidden');
         };
 
+        window.saveDetails = () => {
+            const it = daysData[currentDay].find(x => x.id === editingId);
+            it.name = document.getElementById('det-name').value;
+            it.slot = document.getElementById('det-slot').value;
+            it.cost = document.getElementById('det-cost').value;
+            it.duration = document.getElementById('det-dur').value;
+            it.note = document.getElementById('det-note').value;
+            it.cat = tempCat;
+            it.img = tempImg;
+            updateUI(); closeModal();
+        };
+
+        // --- 总览逻辑 (包含图片) ---
         window.openOverview = () => {
             const content = document.getElementById('overview-content');
             let grandTotal = 0;
-            const slotWeight = { 'morning': 0, 'noon': 1, 'afternoon': 2, 'evening': 3 };
             const slotLabel = { 'morning': '上午', 'noon': '中午', 'afternoon': '下午', 'evening': '晚上' };
+            const slotWeight = { 'morning': 0, 'noon': 1, 'afternoon': 2, 'evening': 3 };
 
             content.innerHTML = daysData.map((day, i) => {
                 const dayTotal = day.reduce((sum, item) => sum + parseFloat(item.cost || 0), 0);
                 grandTotal += dayTotal;
                 const sortedDay = [...day].sort((a, b) => slotWeight[a.slot || 'morning'] - slotWeight[b.slot || 'morning']);
 
-                return `
-                    <div class="bg-slate-50 p-5 rounded-[2rem] border border-slate-100">
-                        <div class="flex justify-between items-center mb-4 border-b pb-3">
-                            <h4 class="font-black">Day ${i+1}</h4>
-                            <span class="text-xs font-bold text-indigo-600">¥${dayTotal}</span>
-                        </div>
-                        <div class="space-y-3">
-                            ${sortedDay.map(it => `
-                                <div class="flex flex-col">
-                                    <div class="flex justify-between text-[9px] font-bold uppercase text-slate-400">
+                return `<div class="bg-slate-50 p-5 rounded-[2rem] border border-slate-100">
+                    <div class="flex justify-between items-center mb-4 border-b pb-3">
+                        <h4 class="font-black">Day ${i+1}</h4>
+                        <span class="text-xs font-bold text-indigo-600">¥${dayTotal}</span>
+                    </div>
+                    <div class="space-y-4">
+                        ${sortedDay.map(it => `
+                            <div class="flex gap-3">
+                                ${it.img ? `<div class="w-10 h-10 rounded overflow-hidden shrink-0 shadow-sm"><img src="${it.img}" class="w-full h-full object-cover"></div>` : '<div class="w-10 h-10 bg-slate-200 rounded shrink-0"></div>'}
+                                <div class="min-w-0 flex-1">
+                                    <div class="flex justify-between text-[8px] font-bold text-slate-400 uppercase">
                                         <span>${slotLabel[it.slot||'morning']}</span>
                                         <span class="text-amber-600">¥${it.cost}</span>
                                     </div>
-                                    <p class="text-xs font-bold truncate text-slate-700">${it.name}</p>
-                                    <p class="text-[8px] text-slate-400 truncate">📍 ${it.addr}</p>
+                                    <p class="text-xs font-bold truncate">${it.name}</p>
+                                    ${it.note ? `<p class="text-[9px] text-slate-400 truncate italic">“${it.note}”</p>` : ''}
                                 </div>
-                            `).join('')}
-                        </div>
-                    </div>`;
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>`;
             }).join('');
             document.getElementById('overview-total-cost').innerText = grandTotal.toLocaleString();
             document.getElementById('overview-modal').classList.remove('hidden');
         };
 
-        // --- 导出导入 ---
+        // --- 其他基础功能 ---
+        window.renderLibrary = () => {
+            document.getElementById('library-list').innerHTML = poiLibrary.map(p => `<div class="p-3 border rounded-xl bg-white"><h4 class="font-bold text-xs truncate">${p.name}</h4><button onclick="addToDay('${p.id}')" class="mt-2 w-full py-1.5 bg-slate-900 text-white rounded-lg text-[10px] font-bold">添加</button></div>`).join('');
+        };
         window.exportData = () => {
-            const data = btoa(encodeURIComponent(JSON.stringify({ v: "1.2", start: startDate, days: daysData, lib: poiLibrary })));
+            const data = btoa(encodeURIComponent(JSON.stringify({ v: "1.3", start: startDate, days: daysData, lib: poiLibrary })));
             const el = document.createElement('textarea'); el.value = data; document.body.appendChild(el); el.select(); document.execCommand('copy'); document.body.removeChild(el);
-            alert("✅ 行程代码已复制！发给手机后点击‘导入’即可。");
+            alert("✅ 数据已复制！");
         };
         window.importData = () => {
-            const code = prompt("请输入行程代码："); if (!code) return;
+            const code = prompt("粘贴行程代码："); if (!code) return;
             try {
                 const d = JSON.parse(decodeURIComponent(atob(code)));
                 startDate = d.start; daysData = d.days; poiLibrary = d.lib;
                 saveToLocal(); location.reload();
-            } catch (e) { alert("无效的代码"); }
+            } catch (e) { alert("无效代码"); }
         };
-
-        // --- 基础控制 ---
-        window.addToDay = (id) => { const it = poiLibrary.find(x => x.id === id); daysData[currentDay].push({ ...it, id: Date.now().toString(), slot: 'morning', cost: 0, duration: 60, note: "" }); updateUI(); };
+        window.addToDay = (id) => { const it = poiLibrary.find(x => x.id === id); daysData[currentDay].push({ ...it, id: Date.now().toString(), slot: 'morning', cost: 0, duration: 60, note: "", img: "" }); updateUI(); };
         window.removeItem = (id) => { daysData[currentDay] = daysData[currentDay].filter(x => x.id !== id); updateUI(); };
-        window.openEdit = (id) => { editingId = id; const it = daysData[currentDay].find(x => x.id === id); document.getElementById('det-name').value = it.name; document.getElementById('det-slot').value = it.slot || 'morning'; document.getElementById('edit-modal').classList.remove('hidden'); };
-        window.saveDetails = () => { const it = daysData[currentDay].find(x => x.id === editingId); it.name = document.getElementById('det-name').value; it.slot = document.getElementById('det-slot').value; it.cost = document.getElementById('det-cost').value; it.duration = document.getElementById('det-dur').value; updateUI(); closeModal(); };
         window.closeModal = () => document.getElementById('edit-modal').classList.add('hidden');
         window.closeOverview = () => document.getElementById('overview-modal').classList.add('hidden');
-        window.setEditCat = (c) => tempCat = c;
-        window.saveToLocal = () => { localStorage.setItem('travel_v12_days', JSON.stringify(daysData)); localStorage.setItem('travel_v12_lib', JSON.stringify(poiLibrary)); localStorage.setItem('travel_v12_start', startDate); };
+        window.setEditCat = (c) => {
+            tempCat = c;
+            document.querySelectorAll('.cat-btn').forEach(btn => {
+                btn.className = (btn.dataset.cat === c) ? 
+                    "cat-btn p-2 rounded-xl text-[10px] font-bold border-2 border-indigo-600 bg-indigo-50 text-indigo-600" : 
+                    "cat-btn p-2 rounded-xl text-[10px] font-bold border border-slate-200 bg-slate-50 text-slate-400";
+            });
+        };
+        window.saveToLocal = () => { localStorage.setItem('travel_v13_days', JSON.stringify(daysData)); localStorage.setItem('travel_v13_lib', JSON.stringify(poiLibrary)); localStorage.setItem('travel_v13_start', startDate); };
         function getDayDate(idx) { const d = new Date(startDate); d.setDate(d.getDate() + idx); return d.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric', weekday: 'short' }); }
         window.updateDates = () => { startDate = document.getElementById('start-date').value; updateUI(); renderDays(); };
         window.addDay = () => { daysData.push([]); renderDays(); switchDay(daysData.length-1); };
         window.switchDay = (i) => { currentDay = i; updateUI(); renderDays(); };
         window.renderDays = () => { document.getElementById('day-selector').innerHTML = daysData.map((_, i) => `<button onclick="switchDay(${i})" class="w-8 h-8 rounded-lg text-[10px] font-black border ${i===currentDay?'active-day':'bg-white text-slate-300'}">${i+1}</button>`).join(''); };
+        window.clearSearch = () => { document.getElementById('map-search').value = ""; document.getElementById('search-results').classList.add('hidden'); };
         window.toggleOptimizeMode = () => { isOptimizeMode = !isOptimizeMode; updateUI(); };
     </script>
 </body>
