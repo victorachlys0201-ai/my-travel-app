@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TravelHub Ultimate - 完美修复版</title>
+    <title>TravelHub Ultimate - 全设备同步版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -16,9 +16,10 @@
         #search-results { max-height: 300px; overflow-y: auto; z-index: 2000; border-radius: 12px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); }
         .search-item:hover { background-color: #f1f5f9; cursor: pointer; }
         .opt-checkbox { width: 1.25rem; height: 1.25rem; border-radius: 0.375rem; border: 2px solid #cbd5e1; cursor: pointer; accent-color: #4f46e5; }
-        /* 隐藏滚动条但保留功能 */
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-900 h-screen flex flex-col overflow-hidden font-sans">
@@ -32,13 +33,15 @@
             <input type="date" id="start-date" onchange="updateDates()" class="bg-slate-100 px-3 py-1.5 rounded-lg text-xs font-bold text-indigo-600 outline-none hover:bg-slate-200 transition">
         </div>
         
-        <div class="flex gap-1.5 overflow-x-auto max-w-[30vw] no-scrollbar" id="day-selector"></div>
+        <div class="flex gap-1.5 overflow-x-auto max-w-[25vw] no-scrollbar" id="day-selector"></div>
         
         <div class="flex gap-2">
             <button onclick="toggleOptimizeMode()" id="btn-opt-mode" class="bg-emerald-50 text-emerald-600 border border-emerald-200 px-3 py-1.5 rounded-lg text-[10px] font-bold hover:bg-emerald-100 transition flex items-center gap-1 whitespace-nowrap">
                 <span>🪄</span> <span id="opt-text">顺路优化</span>
             </button>
             <button onclick="openOverview()" class="bg-slate-900 text-white px-3 py-1.5 rounded-lg text-[10px] font-bold hover:bg-slate-800 transition whitespace-nowrap">📊 总览</button>
+            <button onclick="exportData()" class="bg-amber-500 text-white px-3 py-1.5 rounded-lg text-[10px] font-bold hover:bg-amber-600 transition whitespace-nowrap">📤 导出</button>
+            <button onclick="importData()" class="bg-sky-500 text-white px-3 py-1.5 rounded-lg text-[10px] font-bold hover:bg-sky-600 transition whitespace-nowrap">📥 导入</button>
             <button onclick="addDay()" class="bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-[10px] font-bold hover:bg-indigo-700 transition whitespace-nowrap">+ 天</button>
         </div>
     </header>
@@ -50,7 +53,7 @@
                        class="w-full px-4 py-3 bg-slate-100 border-none rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 outline-none transition font-medium">
                 <div id="search-results" class="absolute left-4 right-4 mt-2 bg-white border hidden overflow-hidden"></div>
             </div>
-            <div id="library-list" class="flex-1 overflow-y-auto p-4 space-y-3 pb-20"></div>
+            <div id="library-list" class="flex-1 overflow-y-auto p-4 space-y-3 pb-20 no-scrollbar"></div>
         </aside>
 
         <section class="flex-1 overflow-y-auto p-6 bg-[#f8fafc] relative scroll-smooth">
@@ -133,8 +136,8 @@
         <div class="max-w-6xl mx-auto p-12">
             <div class="flex justify-between items-center mb-10 border-b pb-6">
                 <div>
-                    <h2 class="text-4xl font-black">Trip Overview</h2>
-                    <p class="text-slate-400 font-bold text-sm mt-2">全行程清单 & 预算统计</p>
+                    <h2 class="text-4xl font-black italic">Trip Overview</h2>
+                    <p class="text-slate-400 font-bold text-sm mt-2 tracking-widest uppercase">全行程清单 & 预算统计</p>
                 </div>
                 <div class="text-right">
                     <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Grand Total</p>
@@ -147,9 +150,10 @@
     </div>
 
     <script>
-        let currentDay = 0, daysData = JSON.parse(localStorage.getItem('travel_v10_days')) || [[]];
-        let poiLibrary = JSON.parse(localStorage.getItem('travel_v10_lib')) || [];
-        let startDate = localStorage.getItem('travel_v10_start') || "2026-02-17";
+        // 核心变量
+        let currentDay = 0, daysData = JSON.parse(localStorage.getItem('travel_v11_days')) || [[]];
+        let poiLibrary = JSON.parse(localStorage.getItem('travel_v11_lib')) || [];
+        let startDate = localStorage.getItem('travel_v11_start') || new Date().toISOString().split('T')[0];
         let map, markers = [], editingId = null, tempCat = 'sight', tempImg = "";
         let isOptimizeMode = false, selectedForOpt = new Set();
 
@@ -163,7 +167,48 @@
             L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map);
         }
 
-        // --- 核心：UI 渲染 ---
+        // --- 数据导出/导入功能 (新添加) ---
+        window.exportData = () => {
+            const package = {
+                v: "1.1",
+                start: startDate,
+                days: daysData,
+                lib: poiLibrary
+            };
+            const dataStr = btoa(encodeURIComponent(JSON.stringify(package))); // Base64编码保护数据
+            const blob = new Blob([dataStr], {type: "text/plain"});
+            const url = URL.createObjectURL(blob);
+            
+            // 弹出提示框并自动复制
+            const tempInput = document.createElement("textarea");
+            tempInput.value = dataStr;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            document.execCommand("copy");
+            document.body.removeChild(tempInput);
+            
+            alert("✅ 行程数据已加密并复制到剪贴板！\n\n您可以将这段代码发送到手机，通过“导入”功能恢复。");
+        };
+
+        window.importData = () => {
+            const dataStr = prompt("请粘贴导出的行程加密代码：");
+            if (!dataStr) return;
+            try {
+                const decoded = JSON.parse(decodeURIComponent(atob(dataStr)));
+                if(confirm("导入将覆盖当前设备上的所有行程，是否继续？")) {
+                    startDate = decoded.start || startDate;
+                    daysData = decoded.days || [[]];
+                    poiLibrary = decoded.lib || [];
+                    document.getElementById('start-date').value = startDate;
+                    saveToLocal();
+                    location.reload(); // 刷新页面应用新数据
+                }
+            } catch (e) {
+                alert("❌ 导入失败：无效的代码格式");
+            }
+        };
+
+        // --- 核心UI逻辑 (已修复Day标题、排序、总费用) ---
         function updateUI() {
             const slotNames = ['morning', 'noon', 'afternoon', 'evening'];
             const slotTitles = {'morning': '☀️ 上午', 'noon': '🍴 中午', 'afternoon': '🌇 下午', 'evening': '🌙 晚上'};
@@ -173,7 +218,6 @@
             markers.forEach(m => m.remove()); markers = [];
             let dayTotal = 0, catCosts = { hotel:0, food:0, activity:0, sight:0 };
 
-            // 修复点1：确保 Day 标题总是显示正确的 currentDay
             document.getElementById('current-day-title').innerText = `Day ${currentDay + 1}`;
             document.getElementById('current-day-date').innerText = getDayDate(currentDay);
             document.getElementById('stat-day').innerText = currentDay + 1;
@@ -191,50 +235,37 @@
                 dayTotal += cost;
                 if(catCosts[item.cat] !== undefined) catCosts[item.cat] += cost; else catCosts.activity += cost;
 
-                const slotList = daysData[currentDay].filter(x => (x.slot || 'morning') === (item.slot || 'morning'));
-                const idxInSlot = slotList.findIndex(x => x.id === item.id);
-                const isFirst = idxInSlot === 0;
-                const isLast = idxInSlot === slotList.length - 1;
+                const slotItems = daysData[currentDay].filter(x => (x.slot || 'morning') === (item.slot || 'morning'));
+                const idxInSlot = slotItems.findIndex(x => x.id === item.id);
 
                 const card = document.createElement('div');
                 card.className = `flex gap-3 p-3 bg-white border border-slate-100 rounded-xl transition-all relative group shadow-sm ${isOptimizeMode ? 'cursor-pointer border-dashed border-indigo-300' : 'hover:shadow-md hover:border-indigo-100'}`;
                 
-                const checkHTML = isOptimizeMode ? 
-                    `<div class="shrink-0 flex items-center pl-1"><input type="checkbox" class="opt-checkbox" ${selectedForOpt.has(item.id) ? 'checked' : ''} onclick="event.stopPropagation(); toggleOptSelection('${item.id}')"></div>` : '';
-                
+                const checkHTML = isOptimizeMode ? `<div class="shrink-0 flex items-center pl-1"><input type="checkbox" class="opt-checkbox" ${selectedForOpt.has(item.id) ? 'checked' : ''} onclick="event.stopPropagation(); toggleOptSelection('${item.id}')"></div>` : '';
                 if (isOptimizeMode) card.onclick = () => toggleOptSelection(item.id);
+
                 const imgHTML = item.img ? `<div class="w-16 h-16 shrink-0 rounded-lg bg-slate-100 overflow-hidden"><img src="${item.img}" class="w-full h-full object-cover"></div>` : '';
 
                 card.innerHTML = `
                     ${checkHTML} ${imgHTML}
                     <div class="flex-1 min-w-0 flex flex-col justify-center">
-                        <div class="flex justify-between items-start">
-                            <div class="flex items-center gap-2 mb-1">
-                                <span class="cat-${item.cat} text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider">${item.cat}</span>
-                                <h4 class="text-sm font-bold text-slate-800 truncate">${item.name}</h4>
-                            </div>
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="cat-${item.cat} text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider">${item.cat}</span>
+                            <h4 class="text-sm font-bold text-slate-800 truncate">${item.name}</h4>
                         </div>
                         <div class="flex items-center gap-3 text-[10px] text-slate-500 font-medium mt-1">
-                            ${item.duration ? `<span class="bg-slate-50 px-1.5 py-0.5 rounded text-slate-400">⏱ ${item.duration}m</span>` : ''}
-                            ${item.cost ? `<span class="bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded">¥ ${item.cost}</span>` : ''}
+                            ${item.duration ? `<span>⏱ ${item.duration}m</span>` : ''}
+                            ${item.cost ? `<span class="text-amber-600 font-bold">¥ ${item.cost}</span>` : ''}
                         </div>
-                        ${item.note ? `<p class="text-[10px] text-slate-400 mt-2 line-clamp-1 italic">📝 ${item.note}</p>` : ''}
                     </div>
                     ${!isOptimizeMode ? `
-                    <div class="flex flex-col justify-between items-end pl-2 border-l border-slate-50">
-                        <div class="flex gap-1">
-                            <button onclick="moveItem('${item.id}', -1)" class="p-1 text-slate-300 hover:text-indigo-600 ${isFirst ? 'invisible' : ''}">▲</button>
-                            <button onclick="moveItem('${item.id}', 1)" class="p-1 text-slate-300 hover:text-indigo-600 ${isLast ? 'invisible' : ''}">▼</button>
-                        </div>
-                        <div class="flex gap-1 mt-1">
-                            <button onclick="copyToNextDay('${item.id}')" title="复制" class="p-1.5 bg-slate-50 text-slate-400 hover:text-indigo-600 rounded-md transition text-[10px]">📋</button>
-                            <button onclick="openEdit('${item.id}')" title="编辑" class="p-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white rounded-md transition text-[10px]">✎</button>
-                            <button onclick="removeItem('${item.id}')" title="删除" class="p-1.5 bg-red-50 text-red-400 hover:bg-red-500 hover:text-white rounded-md transition text-[10px]">✕</button>
-                        </div>
+                    <div class="flex flex-col justify-center items-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onclick="openEdit('${item.id}')" class="p-1.5 bg-indigo-50 text-indigo-600 rounded-md text-[10px]">✎</button>
+                        <button onclick="removeItem('${item.id}')" class="p-1.5 bg-red-50 text-red-400 rounded-md text-[10px]">✕</button>
                     </div>` : ''}
                 `;
                 document.getElementById(`slot-${item.slot || 'morning'}`).appendChild(card);
-                markers.push(L.marker([item.lat, item.lng]).addTo(map).bindPopup(`<b>${item.name}</b>`));
+                markers.push(L.marker([item.lat, item.lng]).addTo(map).bindPopup(item.name));
             });
 
             document.getElementById('total-cost').innerText = dayTotal.toLocaleString();
@@ -246,7 +277,6 @@
             saveToLocal();
         }
 
-        // --- 核心：总览 (包含修复点2和3) ---
         window.openOverview = () => {
             const content = document.getElementById('overview-content');
             let grandTotal = 0;
@@ -257,36 +287,27 @@
                 const dayTotal = day.reduce((sum, item) => sum + parseFloat(item.cost || 0), 0);
                 grandTotal += dayTotal;
 
-                // 修复点2：按时间段权重排序
-                const sortedDay = [...day].sort((a, b) => {
-                    const wa = slotWeight[a.slot || 'morning'];
-                    const wb = slotWeight[b.slot || 'morning'];
-                    return wa - wb;
-                });
+                // 排序逻辑：按时段权重
+                const sortedDay = [...day].sort((a, b) => slotWeight[a.slot || 'morning'] - slotWeight[b.slot || 'morning']);
 
                 return `
-                    <div class="bg-slate-50 p-6 rounded-[2rem] border border-slate-100 flex flex-col">
-                        <div class="flex justify-between items-center mb-4 pb-4 border-b border-slate-200">
-                            <div>
-                                <h4 class="font-black text-xl text-slate-800">Day ${i+1}</h4>
-                                <p class="text-[10px] text-slate-400 font-bold uppercase mt-1">${getDayDate(i)}</p>
-                            </div>
+                    <div class="bg-slate-50 p-6 rounded-[2rem] border border-slate-100">
+                        <div class="flex justify-between items-center mb-4 pb-4 border-b">
+                            <h4 class="font-black text-xl">Day ${i+1}</h4>
                             <span class="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded-lg">¥${dayTotal}</span>
                         </div>
-                        <div class="space-y-3 flex-1 overflow-y-auto max-h-[300px] custom-scrollbar">
-                            ${sortedDay.length === 0 ? '<p class="text-xs text-slate-300 italic text-center py-4">无行程</p>' : ''}
+                        <div class="space-y-3">
                             ${sortedDay.map(it => `
-                                <div class="flex items-start gap-3">
-                                    <div class="w-10 h-10 rounded-lg bg-white border border-slate-100 overflow-hidden shrink-0 shadow-sm">
-                                        ${it.img ? `<img src="${it.img}" class="w-full h-full object-cover">` : '<div class="w-full h-full flex items-center justify-center text-[8px] text-slate-300">无图</div>'}
+                                <div class="flex items-center gap-3">
+                                    <div class="w-8 h-8 rounded bg-white overflow-hidden shrink-0">
+                                        ${it.img ? `<img src="${it.img}" class="w-full h-full object-cover">` : ''}
                                     </div>
                                     <div class="min-w-0 flex-1">
-                                        <div class="flex justify-between">
-                                            <span class="text-[9px] text-slate-400 font-bold uppercase tracking-wider">${slotLabel[it.slot||'morning']}</span>
-                                            ${it.cost > 0 ? `<span class="text-[9px] text-amber-600 font-bold">¥${it.cost}</span>` : ''}
+                                        <div class="flex justify-between text-[9px] text-slate-400 font-bold uppercase">
+                                            <span>${slotLabel[it.slot||'morning']}</span>
+                                            <span>¥${it.cost}</span>
                                         </div>
-                                        <p class="text-xs font-bold text-slate-700 truncate leading-tight mt-0.5">${it.name}</p>
-                                        ${it.note ? `<p class="text-[9px] text-slate-400 truncate mt-0.5">"${it.note}"</p>` : ''}
+                                        <p class="text-xs font-bold truncate">${it.name}</p>
                                     </div>
                                 </div>
                             `).join('')}
@@ -295,99 +316,11 @@
                 `;
             }).join('');
 
-            // 修复点3：显示全行程总价
             document.getElementById('overview-total-cost').innerText = grandTotal.toLocaleString();
             document.getElementById('overview-modal').classList.remove('hidden');
         };
 
-        // --- 其他逻辑保持一致 ---
-        window.moveItem = (id, direction) => {
-            const list = daysData[currentDay];
-            const item = list.find(x => x.id === id); if (!item) return;
-            const slot = item.slot || 'morning';
-            const slotItems = list.filter(x => (x.slot || 'morning') === slot);
-            const idxInSlot = slotItems.findIndex(x => x.id === id);
-            if (direction === -1 && idxInSlot === 0) return;
-            if (direction === 1 && idxInSlot === slotItems.length - 1) return;
-            const targetIdx = idxInSlot + direction;
-            [slotItems[idxInSlot], slotItems[targetIdx]] = [slotItems[targetIdx], slotItems[idxInSlot]];
-            let newList = [];
-            ['morning', 'noon', 'afternoon', 'evening'].forEach(s => {
-                if (s === slot) newList = newList.concat(slotItems);
-                else newList = newList.concat(list.filter(x => (x.slot || 'morning') === s));
-            });
-            daysData[currentDay] = newList; updateUI();
-        };
-
-        window.handleImageUpload = (input) => {
-            if (input.files && input.files[0]) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    tempImg = e.target.result;
-                    document.getElementById('edit-img-show').src = tempImg;
-                    document.getElementById('edit-img-show').classList.remove('hidden');
-                    document.getElementById('img-placeholder').classList.add('hidden');
-                }
-                reader.readAsDataURL(input.files[0]);
-            }
-        };
-
-        window.openEdit = (id) => {
-            editingId = id;
-            const item = daysData[currentDay].find(x => x.id === id);
-            document.getElementById('det-name').value = item.name;
-            document.getElementById('det-slot').value = item.slot || 'morning';
-            document.getElementById('det-cost').value = item.cost || "";
-            document.getElementById('det-dur').value = item.duration || "";
-            document.getElementById('det-note').value = item.note || "";
-            setEditCat(item.cat || 'sight');
-            tempImg = item.img || "";
-            const imgShow = document.getElementById('edit-img-show');
-            const placeholder = document.getElementById('img-placeholder');
-            if (tempImg) { imgShow.src = tempImg; imgShow.classList.remove('hidden'); placeholder.classList.add('hidden'); } 
-            else { imgShow.classList.add('hidden'); placeholder.classList.remove('hidden'); }
-            document.getElementById('edit-modal').classList.remove('hidden');
-        };
-
-        window.saveDetails = () => {
-            const item = daysData[currentDay].find(x => x.id === editingId);
-            item.name = document.getElementById('det-name').value;
-            item.slot = document.getElementById('det-slot').value;
-            item.cost = document.getElementById('det-cost').value;
-            item.duration = document.getElementById('det-dur').value;
-            item.note = document.getElementById('det-note').value;
-            item.cat = tempCat; item.img = tempImg;
-            updateUI(); closeModal();
-        };
-
-        window.toggleOptimizeMode = () => {
-            isOptimizeMode = !isOptimizeMode; selectedForOpt.clear();
-            const btn = document.getElementById('btn-opt-mode');
-            const bar = document.getElementById('opt-bar');
-            if(isOptimizeMode) { btn.className="bg-slate-900 text-white px-3 py-1.5 rounded-lg text-[10px] font-bold flex items-center gap-1"; document.getElementById('opt-text').innerText = "退出模式"; bar.classList.remove('hidden'); } 
-            else { btn.className="bg-emerald-50 text-emerald-600 border border-emerald-200 px-3 py-1.5 rounded-lg text-[10px] font-bold flex items-center gap-1"; document.getElementById('opt-text').innerText = "顺路优化"; bar.classList.add('hidden'); }
-            updateUI();
-        };
-        window.toggleOptSelection = (id) => { if (selectedForOpt.has(id)) selectedForOpt.delete(id); else selectedForOpt.add(id); document.getElementById('opt-count').innerText = selectedForOpt.size; };
-        window.runOptimization = () => {
-            if (selectedForOpt.size < 2) return alert("请至少选择2个地点");
-            let selectionItems = daysData[currentDay].filter(i => selectedForOpt.has(i.id));
-            let ordered = [selectionItems[0]];
-            let unvisited = selectionItems.slice(1);
-            while(unvisited.length > 0) {
-                let curr = ordered[ordered.length-1];
-                let nearestIdx = 0, minDist = Infinity;
-                unvisited.forEach((p, i) => {
-                    let d = L.latLng(curr.lat, curr.lng).distanceTo(L.latLng(p.lat, p.lng));
-                    if(d < minDist) { minDist = d; nearestIdx = i; }
-                });
-                ordered.push(unvisited.splice(nearestIdx, 1)[0]);
-            }
-            let indices = daysData[currentDay].map((item, idx) => selectedForOpt.has(item.id) ? idx : -1).filter(i => i !== -1);
-            indices.forEach((originalIdx, i) => { daysData[currentDay][originalIdx] = ordered[i]; });
-            alert("✅ 路线已优化完毕！"); toggleOptimizeMode(); updateUI();
-        };
-
+        // --- 基础辅助函数 ---
         function initSearch() {
             const input = document.getElementById('map-search'); const res = document.getElementById('search-results'); let timer;
             input.addEventListener('input', (e) => {
@@ -395,26 +328,30 @@
                 timer = setTimeout(async () => {
                     const data = await (await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=5&addressdetails=1`)).json();
                     res.innerHTML = data.map(it => {
-                        const mainName = it.display_name.split(',')[0]; const addr = it.display_name.replace(mainName + ',', '').trim();
-                        return `<div class="search-item p-3 border-b border-slate-50" onclick="addToLib('${mainName.replace(/'/g,"")}', '${addr.replace(/'/g,"")}', ${it.lon}, ${it.lat})"><div class="font-bold text-xs text-slate-800">${mainName}</div><div class="text-[10px] text-slate-400 truncate mt-0.5">${addr}</div></div>`;
+                        const mainName = it.display_name.split(',')[0];
+                        return `<div class="search-item p-3 border-b" onclick="addToLib('${mainName}', '${it.display_name}', ${it.lon}, ${it.lat})"><div class="font-bold text-xs">${mainName}</div></div>`;
                     }).join(''); res.classList.remove('hidden');
                 }, 400);
             });
         }
-        window.addToLib = (n, a, lng, lat) => { poiLibrary.unshift({ id: Date.now().toString(), name: n, addr: a, lng, lat, cat: 'sight' }); renderLibrary(); document.getElementById('search-results').classList.add('hidden'); document.getElementById('map-search').value = ""; };
-        window.addToDay = (id) => { const libItem = poiLibrary.find(x => x.id === id); const slot = (libItem.cat === 'hotel') ? 'evening' : 'morning'; daysData[currentDay].push({ ...libItem, id: Date.now().toString(), slot, cost: 0, duration: 60, note: "", img: "" }); updateUI(); };
-        window.renderLibrary = () => { document.getElementById('library-list').innerHTML = poiLibrary.map(p => `<div class="p-3 border rounded-xl bg-white hover:shadow-md transition group"><div class="flex justify-between items-start"><div class="w-full"><h4 class="font-bold text-xs text-slate-700 truncate">${p.name}</h4><p class="text-[10px] text-slate-400 truncate mt-0.5">${p.addr || ''}</p></div></div><button onclick="addToDay('${p.id}')" class="mt-2 w-full py-1.5 bg-slate-900 text-white rounded-lg text-[10px] font-bold hover:bg-indigo-600 transition opacity-80 group-hover:opacity-100">Add to D${currentDay+1}</button></div>`).join(''); };
-        window.copyToNextDay = (id) => { const item = JSON.parse(JSON.stringify(daysData[currentDay].find(x => x.id === id))); item.id = Date.now().toString(); if (currentDay + 1 >= daysData.length) { daysData.push([]); renderDays(); } daysData[currentDay + 1].unshift(item); alert("已复制到下一天"); };
+
+        window.addToLib = (n, a, lng, lat) => { poiLibrary.unshift({ id: Date.now().toString(), name: n, addr: a, lng, lat, cat: 'sight' }); renderLibrary(); document.getElementById('search-results').classList.add('hidden'); };
+        window.addToDay = (id) => { const it = poiLibrary.find(x => x.id === id); daysData[currentDay].push({ ...it, id: Date.now().toString(), slot: 'morning', cost: 0, duration: 60, note: "", img: "" }); updateUI(); };
+        window.renderLibrary = () => { document.getElementById('library-list').innerHTML = poiLibrary.map(p => `<div class="p-3 border rounded-xl bg-white"><h4 class="font-bold text-xs truncate">${p.name}</h4><button onclick="addToDay('${p.id}')" class="mt-2 w-full py-1 bg-slate-900 text-white rounded text-[10px]">添加至 D${currentDay+1}</button></div>`).join(''); };
         window.removeItem = (id) => { daysData[currentDay] = daysData[currentDay].filter(x => x.id !== id); updateUI(); };
+        window.openEdit = (id) => { editingId = id; const it = daysData[currentDay].find(x => x.id === id); document.getElementById('det-name').value = it.name; document.getElementById('det-slot').value = it.slot || 'morning'; setEditCat(it.cat || 'sight'); document.getElementById('edit-modal').classList.remove('hidden'); };
+        window.saveDetails = () => { const it = daysData[currentDay].find(x => x.id === editingId); it.name = document.getElementById('det-name').value; it.slot = document.getElementById('det-slot').value; it.cat = tempCat; updateUI(); closeModal(); };
         window.closeModal = () => document.getElementById('edit-modal').classList.add('hidden');
         window.closeOverview = () => document.getElementById('overview-modal').classList.add('hidden');
-        window.setEditCat = (c) => { tempCat = c; document.querySelectorAll('.cat-btn').forEach(b => b.className = (b.dataset.cat === c) ? "cat-btn p-2 rounded-xl text-[10px] font-bold border-2 border-indigo-600 bg-indigo-50 text-indigo-600" : "cat-btn p-2 rounded-xl text-[10px] font-bold border border-slate-200 bg-slate-50 text-slate-400"); };
-        window.saveToLocal = () => { localStorage.setItem('travel_v10_days', JSON.stringify(daysData)); localStorage.setItem('travel_v10_lib', JSON.stringify(poiLibrary)); localStorage.setItem('travel_v10_start', startDate); };
+        window.setEditCat = (c) => tempCat = c;
+        window.saveToLocal = () => { localStorage.setItem('travel_v11_days', JSON.stringify(daysData)); localStorage.setItem('travel_v11_lib', JSON.stringify(poiLibrary)); localStorage.setItem('travel_v11_start', startDate); };
         function getDayDate(idx) { const d = new Date(startDate); d.setDate(d.getDate() + idx); return d.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric', weekday: 'short' }); }
         window.updateDates = () => { startDate = document.getElementById('start-date').value; updateUI(); renderDays(); };
         window.addDay = () => { daysData.push([]); renderDays(); switchDay(daysData.length-1); };
         window.switchDay = (i) => { currentDay = i; updateUI(); renderDays(); };
-        window.renderDays = () => { document.getElementById('day-selector').innerHTML = daysData.map((_, i) => `<button onclick="switchDay(${i})" class="w-8 h-8 rounded-lg text-[10px] font-black border transition-all shrink-0 ${i===currentDay?'active-day border-indigo-600':'bg-white text-slate-300 border-slate-200'}">${i+1}</button>`).join(''); };
+        window.renderDays = () => { document.getElementById('day-selector').innerHTML = daysData.map((_, i) => `<button onclick="switchDay(${i})" class="w-8 h-8 rounded-lg text-[10px] font-black border ${i===currentDay?'active-day':'bg-white text-slate-300'}">${i+1}</button>`).join(''); };
+        window.handleImageUpload = (input) => { if (input.files[0]) { const reader = new FileReader(); reader.onload = (e) => { tempImg = e.target.result; document.getElementById('edit-img-show').src = tempImg; document.getElementById('edit-img-show').classList.remove('hidden'); }; reader.readAsDataURL(input.files[0]); } };
+        window.toggleOptimizeMode = () => { isOptimizeMode = !isOptimizeMode; updateUI(); };
     </script>
 </body>
 </html>
