@@ -173,7 +173,25 @@
         <section>... <div id="itinerary-list"></div> ...</section>
         <aside>... <span id="stat-efficiency"></span> ...</aside>
     </main>
+    
+// 引入 Supabase 库
+import { createClient } from 'https://esm.sh/@supabase/supabase-js'
 
+const SUPABASE_URL = 'https://sbzkkolsibqybqzdvqkh.supabase.co'
+const SUPABASE_KEY = 'sb_publishable_XWOzz1S-2hm0GCqrK8jxqw_n0Fsu48Z'
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY)
+
+// 保存函数：在 addToItinerary 里最后调用它
+async function syncToCloud(data) {
+    await supabase.from('itinerary').upsert({ id: 1, plan_data: data })
+}
+
+// 加载函数：页面刷新时调用它
+async function loadFromCloud() {
+    let { data } = await supabase.from('itinerary').select('plan_data').single()
+    if (data) { itinerary = data.plan_data; updateItinerary(); }
+}
+    
     <script>
 // 1. 发烧友级数据模型：库模式 (POI Library)
 const POI_LIBRARY = [
@@ -302,3 +320,4 @@ window.onload = initLibrary;
 
 </body>
 </html>
+
