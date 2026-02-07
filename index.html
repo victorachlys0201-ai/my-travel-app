@@ -3,321 +3,418 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TravelHub Pro - 发烧友级旅游规划</title>
+    <title>TravelHub Ultimate - 完美修复版</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
-        body { font-family: 'Inter', sans-serif; }
-        .glass-effect { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(10px); }
-        .timeline-line::before { content: ''; position: absolute; left: 19px; top: 0; bottom: 0; border-left: 2px dashed #e2e8f0; }
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .active-day { background: #4f46e5 !important; color: white !important; transform: scale(1.05); box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3); }
+        .cat-sight { background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; }
+        .cat-food { background: #ffedd5; color: #9a3412; border: 1px solid #fed7aa; }
+        .cat-hotel { background: #f3e8ff; color: #7e22ce; border: 1px solid #e9d5ff; }
+        .cat-activity { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
+        #search-results { max-height: 300px; overflow-y: auto; z-index: 2000; border-radius: 12px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); }
+        .search-item:hover { background-color: #f1f5f9; cursor: pointer; }
+        .opt-checkbox { width: 1.25rem; height: 1.25rem; border-radius: 0.375rem; border: 2px solid #cbd5e1; cursor: pointer; accent-color: #4f46e5; }
+        /* 隐藏滚动条但保留功能 */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-900">
+<body class="bg-slate-50 text-slate-900 h-screen flex flex-col overflow-hidden font-sans">
 
-    <header class="sticky top-0 z-50 h-16 border-b bg-white/80 backdrop-blur-md flex items-center justify-between px-6">
-        <div class="flex items-center gap-3">
-            <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-200">
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A2 2 0 013 15.487V6a2 2 0 011.106-1.789l5.447-2.724a2 2 0 011.894 0l5.447 2.724A2 2 0 0118 6v9.487a2 2 0 01-1.106 1.789L11.447 20a2 2 0 01-1.894 0z" />
-                </svg>
-            </div>
-            <h1 class="text-xl font-extrabold tracking-tight italic">TravelHub <span class="text-indigo-600">PRO</span></h1>
-        </div>
+    <header class="h-20 border-b bg-white flex items-center justify-between px-6 shrink-0 z-50 shadow-sm">
         <div class="flex items-center gap-4">
-            <button class="hidden md:block text-sm font-medium text-slate-500 hover:text-indigo-600 transition">保存到云端</button>
-            <button class="bg-slate-900 text-white px-5 py-2 rounded-full text-sm font-bold hover:bg-indigo-600 transition-all shadow-md">发布行程</button>
+            <div class="flex items-center gap-2 cursor-pointer" onclick="location.reload()">
+                <div class="w-9 h-9 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold shadow-lg">T</div>
+                <h1 class="text-lg font-bold tracking-tighter italic hidden md:block">TravelHub <span class="text-indigo-600">PRO</span></h1>
+            </div>
+            <input type="date" id="start-date" onchange="updateDates()" class="bg-slate-100 px-3 py-1.5 rounded-lg text-xs font-bold text-indigo-600 outline-none hover:bg-slate-200 transition">
+        </div>
+        
+        <div class="flex gap-1.5 overflow-x-auto max-w-[30vw] no-scrollbar" id="day-selector"></div>
+        
+        <div class="flex gap-2">
+            <button onclick="toggleOptimizeMode()" id="btn-opt-mode" class="bg-emerald-50 text-emerald-600 border border-emerald-200 px-3 py-1.5 rounded-lg text-[10px] font-bold hover:bg-emerald-100 transition flex items-center gap-1 whitespace-nowrap">
+                <span>🪄</span> <span id="opt-text">顺路优化</span>
+            </button>
+            <button onclick="openOverview()" class="bg-slate-900 text-white px-3 py-1.5 rounded-lg text-[10px] font-bold hover:bg-slate-800 transition whitespace-nowrap">📊 总览</button>
+            <button onclick="addDay()" class="bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-[10px] font-bold hover:bg-indigo-700 transition whitespace-nowrap">+ 天</button>
         </div>
     </header>
 
-    <main class="flex h-[calc(100vh-64px)] overflow-hidden">
-        
-        <aside class="w-80 border-r bg-white hidden lg:flex flex-col shrink-0">
-            <div class="p-5 border-b">
-                <div class="relative group">
-                    <input type="text" placeholder="搜索我的地点库..." class="w-full pl-10 pr-4 py-2.5 bg-slate-100 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
-                    <svg class="absolute left-3 top-3 text-slate-400 group-focus-within:text-indigo-500 transition-colors" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
-                </div>
+    <main class="flex flex-1 overflow-hidden">
+        <aside class="w-80 border-r bg-white flex flex-col shrink-0">
+            <div class="p-4 border-b relative z-30">
+                <input id="map-search" type="text" placeholder="🔍 搜索地点 (支持详细地址)" 
+                       class="w-full px-4 py-3 bg-slate-100 border-none rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 outline-none transition font-medium">
+                <div id="search-results" class="absolute left-4 right-4 mt-2 bg-white border hidden overflow-hidden"></div>
             </div>
-            
-            <div class="flex-1 overflow-y-auto p-5 space-y-4">
-                <div class="flex justify-between items-center">
-                    <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest">灵感收藏 (8)</h3>
-                    <button class="text-indigo-600 hover:bg-indigo-50 p-1 rounded transition"><svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 4v16m8-8H4" stroke-width="2" stroke-linecap="round"></path></svg></button>
-                </div>
-                
-                <div class="space-y-3">
-                    <div class="p-4 border border-slate-100 rounded-2xl hover:border-indigo-200 hover:shadow-xl transition-all cursor-pointer group bg-white">
-                        <div class="flex justify-between">
-                            <span class="text-[10px] px-2 py-0.5 bg-orange-100 text-orange-600 rounded-full font-bold uppercase tracking-tighter">必吃美食</span>
-                            <button class="text-slate-300 group-hover:text-indigo-500"><svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"></path></svg></button>
-                        </div>
-                        <h4 class="font-bold text-slate-800 mt-2">老弄堂面馆</h4>
-                        <p class="text-xs text-slate-400 mt-1 line-clamp-1">网友强烈推荐：葱油拌面必点...</p>
-                    </div>
+            <div id="library-list" class="flex-1 overflow-y-auto p-4 space-y-3 pb-20"></div>
+        </aside>
 
-                    <div class="p-4 border border-slate-100 rounded-2xl hover:border-indigo-200 hover:shadow-xl transition-all cursor-pointer group bg-white">
-                        <div class="flex justify-between">
-                            <span class="text-[10px] px-2 py-0.5 bg-blue-100 text-blue-600 rounded-full font-bold uppercase tracking-tighter">人文建筑</span>
-                        </div>
-                        <h4 class="font-bold text-slate-800 mt-2">上海图书馆东馆</h4>
-                        <p class="text-xs text-slate-400 mt-1">预约制，室内设计极其震撼...</p>
-                    </div>
+        <section class="flex-1 overflow-y-auto p-6 bg-[#f8fafc] relative scroll-smooth">
+            <div class="max-w-3xl mx-auto pb-24">
+                <div class="mb-6">
+                    <h2 id="current-day-title" class="text-3xl font-black text-slate-800 italic">Day 1</h2>
+                    <p id="current-day-date" class="text-indigo-500 text-xs font-bold mt-1 tracking-widest uppercase"></p>
+                </div>
+                <div class="space-y-6" id="time-slots"></div>
+            </div>
+
+            <div id="opt-bar" class="fixed bottom-8 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-6 py-3 rounded-full shadow-2xl z-[60] hidden flex items-center gap-4 animate-in slide-in-from-bottom duration-300">
+                <span class="text-xs font-bold whitespace-nowrap">已选 <span id="opt-count" class="text-emerald-400 text-base">0</span> 个</span>
+                <div class="h-4 w-[1px] bg-slate-600"></div>
+                <button onclick="runOptimization()" class="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap">开始排序</button>
+                <button onclick="toggleOptimizeMode()" class="text-slate-400 hover:text-white text-xs font-bold whitespace-nowrap">取消</button>
+            </div>
+        </section>
+
+        <aside class="w-[28rem] border-l bg-white hidden xl:flex flex-col shrink-0 p-6">
+            <div id="map" class="h-3/5 rounded-[2rem] shadow-lg border-4 border-white mb-6 z-10"></div>
+            <div class="bg-indigo-50 rounded-[2rem] p-6 text-indigo-900 border border-indigo-100 h-2/5 flex flex-col justify-center relative overflow-hidden">
+                <div class="absolute -right-10 -top-10 w-40 h-40 bg-indigo-100 rounded-full opacity-50 blur-3xl"></div>
+                <p class="text-[10px] opacity-60 uppercase font-bold tracking-widest relative z-10">Day <span id="stat-day">1</span> 预估支出</p>
+                <p class="text-4xl font-black mt-2 relative z-10">¥ <span id="total-cost">0</span></p>
+                <div class="mt-6 space-y-2 relative z-10">
+                    <div class="flex justify-between text-xs font-bold text-indigo-400"><span>住宿</span><span id="cost-hotel">¥0</span></div>
+                    <div class="flex justify-between text-xs font-bold text-indigo-400"><span>餐饮</span><span id="cost-food">¥0</span></div>
+                    <div class="flex justify-between text-xs font-bold text-indigo-400"><span>其他</span><span id="cost-other">¥0</span></div>
                 </div>
             </div>
         </aside>
-
-        <section class="flex-1 overflow-y-auto px-4 md:px-12 py-10">
-            <div class="max-w-2xl mx-auto">
-                <div class="flex items-end justify-between mb-10">
-                    <div>
-                        <span class="text-indigo-600 font-bold text-sm tracking-widest uppercase">Itinerary Plan</span>
-                        <h2 class="text-4xl font-extrabold tracking-tight mt-1">上海深度游 · Day 1</h2>
-                    </div>
-                    <div class="flex bg-white rounded-xl shadow-sm border p-1">
-                        <button class="px-4 py-1.5 bg-slate-900 text-white text-xs font-bold rounded-lg shadow-inner">时间轴视图</button>
-                        <button class="px-4 py-1.5 text-slate-500 text-xs font-bold rounded-lg hover:bg-slate-50 transition">概览视图</button>
-                    </div>
-                </div>
-
-                <div class="relative timeline-line ml-4 space-y-12">
-                    <div class="relative pl-12 group">
-                        <div class="absolute left-0 top-1 w-10 h-10 bg-indigo-600 text-white rounded-full flex items-center justify-center font-black shadow-lg shadow-indigo-200 z-10">1</div>
-                        <div class="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:border-indigo-300 transition-all">
-                            <div class="flex justify-between items-start mb-4">
-                                <div>
-                                    <h3 class="text-xl font-bold">武康路历史街区</h3>
-                                    <p class="text-sm text-slate-400 flex items-center gap-2 mt-1">
-                                        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" stroke-width="2"></path></svg> 
-                                        停留时长: 2.5 小时
-                                    </p>
-                                </div>
-                                <span class="bg-green-50 text-green-600 text-[10px] font-black px-2 py-1 rounded-md uppercase tracking-wide">最佳游玩时间段</span>
-                            </div>
-                            <div class="flex gap-2">
-                                <span class="text-xs bg-slate-100 text-slate-600 px-3 py-1 rounded-full"># 摄影</span>
-                                <span class="text-xs bg-slate-100 text-slate-600 px-3 py-1 rounded-full"># 建筑</span>
-                            </div>
-                        </div>
-                        <div class="absolute -bottom-8 left-12 flex items-center gap-3 text-slate-400">
-                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" stroke-width="2"></path></svg>
-                            <span class="text-xs font-medium italic">打车 12 分钟 · 3.4km</span>
-                        </div>
-                    </div>
-
-                    <div class="relative pl-12 group">
-                        <div class="absolute left-0 top-1 w-10 h-10 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center font-black z-10 border-2 border-white group-hover:bg-indigo-100 group-hover:text-indigo-600 transition-colors">2</div>
-                        <div class="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 opacity-80 grayscale-[0.5] hover:opacity-100 hover:grayscale-0 transition-all">
-                            <h3 class="text-xl font-bold italic text-slate-400">点击左侧库添加下一个目的地...</h3>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <section class="w-96 bg-white border-l hidden xl:flex flex-col shrink-0 p-8 space-y-8 overflow-y-auto">
-            <h3 class="text-lg font-black tracking-tight">路线效率分析</h3>
-            
-            <div class="h-64 bg-slate-100 rounded-[2rem] relative overflow-hidden group shadow-inner">
-                <div class="absolute inset-0 bg-[url('https://api.mapbox.com/styles/v1/mapbox/light-v10/static/121.47,31.23,12,0/400x300?access_token=pk.xxx')] bg-cover opacity-50"></div>
-                <div class="absolute inset-0 flex items-center justify-center">
-                    <div class="bg-white/90 px-4 py-2 rounded-full text-xs font-bold shadow-xl border border-white flex items-center gap-2">
-                        <span class="w-2 h-2 bg-red-500 rounded-full animate-ping"></span>
-                        实时路况引擎就绪
-                    </div>
-                </div>
-            </div>
-
-            <div class="bg-indigo-600 rounded-[2.5rem] p-8 text-white shadow-2xl shadow-indigo-200 relative overflow-hidden">
-                <div class="relative z-10">
-                    <p class="text-indigo-100 text-xs font-bold uppercase tracking-widest mb-1">Route Efficiency</p>
-                    <div class="flex items-baseline gap-2">
-                        <span class="text-5xl font-black">92</span>
-                        <span class="text-xl font-bold">%</span>
-                    </div>
-                    <p class="mt-4 text-sm text-indigo-100 leading-relaxed">你的景点排布高度聚集在**静安区**，节省了约 <span class="text-white font-bold">45分钟</span> 的无效通勤。</p>
-                </div>
-                <div class="absolute -right-10 -bottom-10 w-40 h-40 bg-white/10 rounded-full"></div>
-            </div>
-
-            <div class="space-y-4">
-                <div class="flex justify-between items-center p-4 bg-slate-50 rounded-2xl">
-                    <div class="flex items-center gap-3">
-                        <div class="w-8 h-8 bg-white rounded-lg flex items-center justify-center shadow-sm">🚶</div>
-                        <span class="text-sm font-bold">预计步数</span>
-                    </div>
-                    <span class="text-sm font-mono font-bold">12,400</span>
-                </div>
-                <div class="flex justify-between items-center p-4 bg-slate-50 rounded-2xl">
-                    <div class="flex items-center gap-3">
-                        <div class="w-8 h-8 bg-white rounded-lg flex items-center justify-center shadow-sm">💰</div>
-                        <span class="text-sm font-bold">预估开销</span>
-                    </div>
-                    <span class="text-sm font-mono font-bold">¥450.00</span>
-                </div>
-            </div>
-        </section>
     </main>
 
-<!DOCTYPE html>
-<html>
-<head>
-    </head>
-<body class="...">
+    <div id="edit-modal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-[100] hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-[2rem] w-full max-w-lg p-8 shadow-2xl animate-in zoom-in duration-200 flex flex-col max-h-[90vh]">
+            <h3 class="text-xl font-black mb-6 shrink-0">编辑行程项</h3>
+            <div class="space-y-4 overflow-y-auto pr-2 custom-scrollbar flex-1">
+                <div class="relative group cursor-pointer" onclick="document.getElementById('img-upload').click()">
+                    <div id="img-preview-area" class="h-32 bg-slate-100 rounded-xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center hover:bg-slate-50 transition overflow-hidden">
+                        <img id="edit-img-show" class="hidden w-full h-full object-cover">
+                        <div id="img-placeholder" class="text-center">
+                            <span class="text-2xl">📷</span>
+                            <p class="text-[10px] font-bold text-slate-400 mt-1">点击上传图片/文件</p>
+                        </div>
+                    </div>
+                    <input type="file" id="img-upload" accept="image/*" class="hidden" onchange="handleImageUpload(this)">
+                </div>
 
-    <header>...</header>
-    
-    <main class="flex ...">
-        <aside>... <div id="library-list"></div> ...</aside>
-        <section>... <div id="itinerary-list"></div> ...</section>
-        <aside>... <span id="stat-efficiency"></span> ...</aside>
-    </main>
-    
-// 引入 Supabase 库
-import { createClient } from 'https://esm.sh/@supabase/supabase-js'
+                <div class="grid grid-cols-4 gap-2">
+                    <button onclick="setEditCat('sight')" class="cat-btn p-2 rounded-xl text-[10px] font-bold border" data-cat="sight">景点</button>
+                    <button onclick="setEditCat('food')" class="cat-btn p-2 rounded-xl text-[10px] font-bold border" data-cat="food">餐食</button>
+                    <button onclick="setEditCat('hotel')" class="cat-btn p-2 rounded-xl text-[10px] font-bold border" data-cat="hotel">住宿</button>
+                    <button onclick="setEditCat('activity')" class="cat-btn p-2 rounded-xl text-[10px] font-bold border" data-cat="activity">活动</button>
+                </div>
+                <div>
+                    <label class="text-[10px] font-black text-slate-400 uppercase block mb-1">时间段</label>
+                    <select id="det-slot" class="w-full px-3 py-2 bg-slate-50 rounded-lg outline-none font-bold text-sm text-slate-700 border border-slate-100">
+                        <option value="morning">上午 (Morning)</option>
+                        <option value="noon">中午 (Noon)</option>
+                        <option value="afternoon">下午 (Afternoon)</option>
+                        <option value="evening">晚上 (Evening)</option>
+                    </select>
+                </div>
+                <input id="det-name" type="text" class="w-full px-4 py-3 bg-slate-50 rounded-xl outline-none font-bold text-sm border border-slate-100" placeholder="地点名称">
+                <div class="grid grid-cols-2 gap-3">
+                    <input id="det-cost" type="number" class="px-3 py-2 bg-slate-50 rounded-lg outline-none text-sm border border-slate-100" placeholder="费用 (¥)">
+                    <input id="det-dur" type="number" class="px-3 py-2 bg-slate-50 rounded-lg outline-none text-sm border border-slate-100" placeholder="游玩时长 (分)">
+                </div>
+                <textarea id="det-note" rows="3" class="w-full px-4 py-3 bg-slate-50 rounded-xl outline-none resize-none text-xs border border-slate-100" placeholder="填写备注信息..."></textarea>
+            </div>
+            <div class="flex gap-3 mt-6 shrink-0">
+                <button onclick="closeModal()" class="flex-1 py-3 text-slate-400 font-bold text-xs hover:bg-slate-50 rounded-xl">取消</button>
+                <button onclick="saveDetails()" class="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold text-xs shadow-lg hover:bg-indigo-700">保存修改</button>
+            </div>
+        </div>
+    </div>
 
-const SUPABASE_URL = 'https://sbzkkolsibqybqzdvqkh.supabase.co'
-const SUPABASE_KEY = 'sb_publishable_XWOzz1S-2hm0GCqrK8jxqw_n0Fsu48Z'
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY)
+    <div id="overview-modal" class="fixed inset-0 bg-white z-[200] hidden overflow-y-auto">
+        <div class="max-w-6xl mx-auto p-12">
+            <div class="flex justify-between items-center mb-10 border-b pb-6">
+                <div>
+                    <h2 class="text-4xl font-black">Trip Overview</h2>
+                    <p class="text-slate-400 font-bold text-sm mt-2">全行程清单 & 预算统计</p>
+                </div>
+                <div class="text-right">
+                    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Grand Total</p>
+                    <p class="text-4xl font-black text-indigo-600">¥ <span id="overview-total-cost">0</span></p>
+                </div>
+                <button onclick="closeOverview()" class="absolute top-12 right-12 w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center font-bold transition">✕</button>
+            </div>
+            <div id="overview-content" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"></div>
+        </div>
+    </div>
 
-// 保存函数：在 addToItinerary 里最后调用它
-async function syncToCloud(data) {
-    await supabase.from('itinerary').upsert({ id: 1, plan_data: data })
-}
-
-// 加载函数：页面刷新时调用它
-async function loadFromCloud() {
-    let { data } = await supabase.from('itinerary').select('plan_data').single()
-    if (data) { itinerary = data.plan_data; updateItinerary(); }
-}
-    
     <script>
-// 1. 发烧友级数据模型：库模式 (POI Library)
-const POI_LIBRARY = [
-    { id: 'p1', name: "武康大楼", type: "sight", duration: 120, coords: { lat: 31.20, lng: 121.43 }, desc: "经典历史建筑" },
-    { id: 'p2', name: "老弄堂面馆", type: "food", duration: 60, coords: { lat: 31.21, lng: 121.44 }, desc: "本帮葱油拌面" },
-    { id: 'p3', name: "上海图书馆东馆", type: "sight", duration: 180, coords: { lat: 31.22, lng: 121.53 }, desc: "现代建筑美学" },
-    { id: 'p4', name: "外滩", type: "sight", duration: 90, coords: { lat: 31.23, lng: 121.48 }, desc: "夜景必去" },
-    { id: 'p5', name: "豫园", type: "sight", duration: 150, coords: { lat: 31.22, lng: 121.49 }, desc: "古典园林" }
-];
+        let currentDay = 0, daysData = JSON.parse(localStorage.getItem('travel_v10_days')) || [[]];
+        let poiLibrary = JSON.parse(localStorage.getItem('travel_v10_lib')) || [];
+        let startDate = localStorage.getItem('travel_v10_start') || "2026-02-17";
+        let map, markers = [], editingId = null, tempCat = 'sight', tempImg = "";
+        let isOptimizeMode = false, selectedForOpt = new Set();
 
-// 2. 应用状态管理
-let itinerary = [];
+        window.onload = () => {
+            document.getElementById('start-date').value = startDate;
+            initMap(); initSearch(); renderDays(); renderLibrary(); updateUI();
+        };
 
-// 3. 核心算法：计算地理距离 (Haversine Formula 简化版)
-function getDistance(c1, c2) {
-    const R = 6371; // 地球半径 km
-    const dLat = (c2.lat - c1.lat) * Math.PI / 180;
-    const dLng = (c2.lng - c1.lng) * Math.PI / 180;
-    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-              Math.cos(c1.lat * Math.PI / 180) * Math.cos(c2.lat * Math.PI / 180) *
-              Math.sin(dLng / 2) * Math.sin(dLng / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c; // 返回公里数
-}
-
-// 4. 行程更新引擎
-function updateItinerary() {
-    const container = document.getElementById('itinerary-list');
-    container.innerHTML = '';
-    
-    let totalSightseeingTime = 0;
-    let totalTransitTime = 0;
-    let totalDistance = 0;
-
-    itinerary.forEach((item, index) => {
-        totalSightseeingTime += item.duration;
-
-        // 计算与上一个点之间的交通
-        let transitHtml = '';
-        if (index > 0) {
-            const prev = itinerary[index - 1];
-            const dist = getDistance(prev.coords, item.coords);
-            const time = Math.round(dist * 5 + 10); // 粗略估算：5min/km + 10min等车
-            totalDistance += dist;
-            totalTransitTime += time;
-
-            transitHtml = `
-                <div class="absolute -top-10 left-12 flex items-center gap-3 text-slate-400">
-                    <div class="flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded text-[10px] font-bold">
-                        🚗 ${time} 分钟 · ${dist.toFixed(1)} km
-                    </div>
-                </div>`;
+        function initMap() {
+            map = L.map('map', { zoomControl: false }).setView([31.23, 121.47], 11);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map);
         }
 
-        // 渲染行程卡片
-        const card = document.createElement('div');
-        card.className = 'relative pl-12 group animate-in slide-in-from-left duration-300';
-        card.innerHTML = `
-            ${transitHtml}
-            <div class="absolute left-0 top-1 w-10 h-10 ${index === 0 ? 'bg-indigo-600' : 'bg-slate-800'} text-white rounded-full flex items-center justify-center font-black shadow-lg z-10">${index + 1}</div>
-            <div class="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:border-indigo-300 transition-all relative">
-                <button onclick="removeItem(${index})" class="absolute top-4 right-4 text-slate-300 hover:text-red-500 transition">✕</button>
-                <h3 class="text-xl font-bold">${item.name}</h3>
-                <p class="text-xs text-slate-400 mt-1">🕒 建议停留: ${item.duration} 分钟</p>
-            </div>
-        `;
-        container.appendChild(card);
-    });
+        // --- 核心：UI 渲染 ---
+        function updateUI() {
+            const slotNames = ['morning', 'noon', 'afternoon', 'evening'];
+            const slotTitles = {'morning': '☀️ 上午', 'noon': '🍴 中午', 'afternoon': '🌇 下午', 'evening': '🌙 晚上'};
+            const container = document.getElementById('time-slots');
+            container.innerHTML = ''; 
+            
+            markers.forEach(m => m.remove()); markers = [];
+            let dayTotal = 0, catCosts = { hotel:0, food:0, activity:0, sight:0 };
 
-    updateStats(totalSightseeingTime, totalTransitTime, totalDistance);
-}
+            // 修复点1：确保 Day 标题总是显示正确的 currentDay
+            document.getElementById('current-day-title').innerText = `Day ${currentDay + 1}`;
+            document.getElementById('current-day-date').innerText = getDayDate(currentDay);
+            document.getElementById('stat-day').innerText = currentDay + 1;
 
-// 5. 效率指数计算与面板更新
-function updateStats(sightTime, transitTime, distance) {
-    const efficiency = sightTime > 0 ? Math.round((sightTime / (sightTime + transitTime)) * 100) : 0;
-    
-    document.getElementById('stat-efficiency').innerText = efficiency;
-    document.getElementById('stat-distance').innerText = distance.toFixed(1) + ' km';
-    document.getElementById('stat-time').innerText = Math.round((sightTime + transitTime) / 60) + 'h';
-    
-    // 动态调整进度条视觉 (假设右侧有进度条)
-    const tip = efficiency > 80 ? "这份行程极其高效！" : "注意：交通耗时较长，建议优化路线。";
-    document.getElementById('stat-tip').innerText = tip;
-}
+            slotNames.forEach(slot => {
+                container.innerHTML += `
+                    <div class="bg-white rounded-[1.5rem] p-5 shadow-sm border border-slate-100/50">
+                        <h3 class="font-black text-slate-300 text-xs mb-3 flex items-center gap-2 uppercase tracking-wider">${slotTitles[slot]}</h3>
+                        <div id="slot-${slot}" class="space-y-3 min-h-[40px]"></div>
+                    </div>`;
+            });
 
-// 6. 交互函数
-function addToItinerary(poiId) {
-    const poi = POI_LIBRARY.find(p => p.id === poiId);
-    itinerary.push({ ...poi, instanceId: Date.now() });
-    updateItinerary();
-}
+            daysData[currentDay].forEach((item) => {
+                const cost = parseFloat(item.cost || 0);
+                dayTotal += cost;
+                if(catCosts[item.cat] !== undefined) catCosts[item.cat] += cost; else catCosts.activity += cost;
 
-function removeItem(index) {
-    itinerary.splice(index, 1);
-    updateItinerary();
-}
+                const slotList = daysData[currentDay].filter(x => (x.slot || 'morning') === (item.slot || 'morning'));
+                const idxInSlot = slotList.findIndex(x => x.id === item.id);
+                const isFirst = idxInSlot === 0;
+                const isLast = idxInSlot === slotList.length - 1;
 
-// 初始化加载库列表
-function initLibrary() {
-    const libContainer = document.getElementById('library-list');
-    POI_LIBRARY.forEach(poi => {
-        const div = document.createElement('div');
-        div.className = 'p-4 border border-slate-100 rounded-2xl hover:border-indigo-200 hover:shadow-xl transition-all cursor-pointer group bg-white';
-        div.onclick = () => addToItinerary(poi.id);
-        div.innerHTML = `
-            <div class="flex justify-between items-center">
-                <h4 class="font-bold text-slate-800">${poi.name}</h4>
-                <div class="text-indigo-600 opacity-0 group-hover:opacity-100 transition">＋</div>
-            </div>
-            <p class="text-xs text-slate-400 mt-1">${poi.desc}</p>
-        `;
-        libContainer.appendChild(div);
-    });
-}
+                const card = document.createElement('div');
+                card.className = `flex gap-3 p-3 bg-white border border-slate-100 rounded-xl transition-all relative group shadow-sm ${isOptimizeMode ? 'cursor-pointer border-dashed border-indigo-300' : 'hover:shadow-md hover:border-indigo-100'}`;
+                
+                const checkHTML = isOptimizeMode ? 
+                    `<div class="shrink-0 flex items-center pl-1"><input type="checkbox" class="opt-checkbox" ${selectedForOpt.has(item.id) ? 'checked' : ''} onclick="event.stopPropagation(); toggleOptSelection('${item.id}')"></div>` : '';
+                
+                if (isOptimizeMode) card.onclick = () => toggleOptSelection(item.id);
+                const imgHTML = item.img ? `<div class="w-16 h-16 shrink-0 rounded-lg bg-slate-100 overflow-hidden"><img src="${item.img}" class="w-full h-full object-cover"></div>` : '';
 
-window.onload = initLibrary;
+                card.innerHTML = `
+                    ${checkHTML} ${imgHTML}
+                    <div class="flex-1 min-w-0 flex flex-col justify-center">
+                        <div class="flex justify-between items-start">
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="cat-${item.cat} text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider">${item.cat}</span>
+                                <h4 class="text-sm font-bold text-slate-800 truncate">${item.name}</h4>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-3 text-[10px] text-slate-500 font-medium mt-1">
+                            ${item.duration ? `<span class="bg-slate-50 px-1.5 py-0.5 rounded text-slate-400">⏱ ${item.duration}m</span>` : ''}
+                            ${item.cost ? `<span class="bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded">¥ ${item.cost}</span>` : ''}
+                        </div>
+                        ${item.note ? `<p class="text-[10px] text-slate-400 mt-2 line-clamp-1 italic">📝 ${item.note}</p>` : ''}
+                    </div>
+                    ${!isOptimizeMode ? `
+                    <div class="flex flex-col justify-between items-end pl-2 border-l border-slate-50">
+                        <div class="flex gap-1">
+                            <button onclick="moveItem('${item.id}', -1)" class="p-1 text-slate-300 hover:text-indigo-600 ${isFirst ? 'invisible' : ''}">▲</button>
+                            <button onclick="moveItem('${item.id}', 1)" class="p-1 text-slate-300 hover:text-indigo-600 ${isLast ? 'invisible' : ''}">▼</button>
+                        </div>
+                        <div class="flex gap-1 mt-1">
+                            <button onclick="copyToNextDay('${item.id}')" title="复制" class="p-1.5 bg-slate-50 text-slate-400 hover:text-indigo-600 rounded-md transition text-[10px]">📋</button>
+                            <button onclick="openEdit('${item.id}')" title="编辑" class="p-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white rounded-md transition text-[10px]">✎</button>
+                            <button onclick="removeItem('${item.id}')" title="删除" class="p-1.5 bg-red-50 text-red-400 hover:bg-red-500 hover:text-white rounded-md transition text-[10px]">✕</button>
+                        </div>
+                    </div>` : ''}
+                `;
+                document.getElementById(`slot-${item.slot || 'morning'}`).appendChild(card);
+                markers.push(L.marker([item.lat, item.lng]).addTo(map).bindPopup(`<b>${item.name}</b>`));
+            });
 
-        const POI_LIBRARY = [...];
-        function addToItinerary(poiId) { ... }
+            document.getElementById('total-cost').innerText = dayTotal.toLocaleString();
+            document.getElementById('cost-hotel').innerText = `¥${catCosts.hotel}`;
+            document.getElementById('cost-food').innerText = `¥${catCosts.food}`;
+            document.getElementById('cost-other').innerText = `¥${catCosts.activity + catCosts.sight}`;
+            
+            if(markers.length > 0) map.fitBounds(new L.featureGroup(markers).getBounds().pad(0.2));
+            saveToLocal();
+        }
+
+        // --- 核心：总览 (包含修复点2和3) ---
+        window.openOverview = () => {
+            const content = document.getElementById('overview-content');
+            let grandTotal = 0;
+            const slotWeight = { 'morning': 0, 'noon': 1, 'afternoon': 2, 'evening': 3 };
+            const slotLabel = { 'morning': '上午', 'noon': '中午', 'afternoon': '下午', 'evening': '晚上' };
+
+            content.innerHTML = daysData.map((day, i) => {
+                const dayTotal = day.reduce((sum, item) => sum + parseFloat(item.cost || 0), 0);
+                grandTotal += dayTotal;
+
+                // 修复点2：按时间段权重排序
+                const sortedDay = [...day].sort((a, b) => {
+                    const wa = slotWeight[a.slot || 'morning'];
+                    const wb = slotWeight[b.slot || 'morning'];
+                    return wa - wb;
+                });
+
+                return `
+                    <div class="bg-slate-50 p-6 rounded-[2rem] border border-slate-100 flex flex-col">
+                        <div class="flex justify-between items-center mb-4 pb-4 border-b border-slate-200">
+                            <div>
+                                <h4 class="font-black text-xl text-slate-800">Day ${i+1}</h4>
+                                <p class="text-[10px] text-slate-400 font-bold uppercase mt-1">${getDayDate(i)}</p>
+                            </div>
+                            <span class="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded-lg">¥${dayTotal}</span>
+                        </div>
+                        <div class="space-y-3 flex-1 overflow-y-auto max-h-[300px] custom-scrollbar">
+                            ${sortedDay.length === 0 ? '<p class="text-xs text-slate-300 italic text-center py-4">无行程</p>' : ''}
+                            ${sortedDay.map(it => `
+                                <div class="flex items-start gap-3">
+                                    <div class="w-10 h-10 rounded-lg bg-white border border-slate-100 overflow-hidden shrink-0 shadow-sm">
+                                        ${it.img ? `<img src="${it.img}" class="w-full h-full object-cover">` : '<div class="w-full h-full flex items-center justify-center text-[8px] text-slate-300">无图</div>'}
+                                    </div>
+                                    <div class="min-w-0 flex-1">
+                                        <div class="flex justify-between">
+                                            <span class="text-[9px] text-slate-400 font-bold uppercase tracking-wider">${slotLabel[it.slot||'morning']}</span>
+                                            ${it.cost > 0 ? `<span class="text-[9px] text-amber-600 font-bold">¥${it.cost}</span>` : ''}
+                                        </div>
+                                        <p class="text-xs font-bold text-slate-700 truncate leading-tight mt-0.5">${it.name}</p>
+                                        ${it.note ? `<p class="text-[9px] text-slate-400 truncate mt-0.5">"${it.note}"</p>` : ''}
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            // 修复点3：显示全行程总价
+            document.getElementById('overview-total-cost').innerText = grandTotal.toLocaleString();
+            document.getElementById('overview-modal').classList.remove('hidden');
+        };
+
+        // --- 其他逻辑保持一致 ---
+        window.moveItem = (id, direction) => {
+            const list = daysData[currentDay];
+            const item = list.find(x => x.id === id); if (!item) return;
+            const slot = item.slot || 'morning';
+            const slotItems = list.filter(x => (x.slot || 'morning') === slot);
+            const idxInSlot = slotItems.findIndex(x => x.id === id);
+            if (direction === -1 && idxInSlot === 0) return;
+            if (direction === 1 && idxInSlot === slotItems.length - 1) return;
+            const targetIdx = idxInSlot + direction;
+            [slotItems[idxInSlot], slotItems[targetIdx]] = [slotItems[targetIdx], slotItems[idxInSlot]];
+            let newList = [];
+            ['morning', 'noon', 'afternoon', 'evening'].forEach(s => {
+                if (s === slot) newList = newList.concat(slotItems);
+                else newList = newList.concat(list.filter(x => (x.slot || 'morning') === s));
+            });
+            daysData[currentDay] = newList; updateUI();
+        };
+
+        window.handleImageUpload = (input) => {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    tempImg = e.target.result;
+                    document.getElementById('edit-img-show').src = tempImg;
+                    document.getElementById('edit-img-show').classList.remove('hidden');
+                    document.getElementById('img-placeholder').classList.add('hidden');
+                }
+                reader.readAsDataURL(input.files[0]);
+            }
+        };
+
+        window.openEdit = (id) => {
+            editingId = id;
+            const item = daysData[currentDay].find(x => x.id === id);
+            document.getElementById('det-name').value = item.name;
+            document.getElementById('det-slot').value = item.slot || 'morning';
+            document.getElementById('det-cost').value = item.cost || "";
+            document.getElementById('det-dur').value = item.duration || "";
+            document.getElementById('det-note').value = item.note || "";
+            setEditCat(item.cat || 'sight');
+            tempImg = item.img || "";
+            const imgShow = document.getElementById('edit-img-show');
+            const placeholder = document.getElementById('img-placeholder');
+            if (tempImg) { imgShow.src = tempImg; imgShow.classList.remove('hidden'); placeholder.classList.add('hidden'); } 
+            else { imgShow.classList.add('hidden'); placeholder.classList.remove('hidden'); }
+            document.getElementById('edit-modal').classList.remove('hidden');
+        };
+
+        window.saveDetails = () => {
+            const item = daysData[currentDay].find(x => x.id === editingId);
+            item.name = document.getElementById('det-name').value;
+            item.slot = document.getElementById('det-slot').value;
+            item.cost = document.getElementById('det-cost').value;
+            item.duration = document.getElementById('det-dur').value;
+            item.note = document.getElementById('det-note').value;
+            item.cat = tempCat; item.img = tempImg;
+            updateUI(); closeModal();
+        };
+
+        window.toggleOptimizeMode = () => {
+            isOptimizeMode = !isOptimizeMode; selectedForOpt.clear();
+            const btn = document.getElementById('btn-opt-mode');
+            const bar = document.getElementById('opt-bar');
+            if(isOptimizeMode) { btn.className="bg-slate-900 text-white px-3 py-1.5 rounded-lg text-[10px] font-bold flex items-center gap-1"; document.getElementById('opt-text').innerText = "退出模式"; bar.classList.remove('hidden'); } 
+            else { btn.className="bg-emerald-50 text-emerald-600 border border-emerald-200 px-3 py-1.5 rounded-lg text-[10px] font-bold flex items-center gap-1"; document.getElementById('opt-text').innerText = "顺路优化"; bar.classList.add('hidden'); }
+            updateUI();
+        };
+        window.toggleOptSelection = (id) => { if (selectedForOpt.has(id)) selectedForOpt.delete(id); else selectedForOpt.add(id); document.getElementById('opt-count').innerText = selectedForOpt.size; };
+        window.runOptimization = () => {
+            if (selectedForOpt.size < 2) return alert("请至少选择2个地点");
+            let selectionItems = daysData[currentDay].filter(i => selectedForOpt.has(i.id));
+            let ordered = [selectionItems[0]];
+            let unvisited = selectionItems.slice(1);
+            while(unvisited.length > 0) {
+                let curr = ordered[ordered.length-1];
+                let nearestIdx = 0, minDist = Infinity;
+                unvisited.forEach((p, i) => {
+                    let d = L.latLng(curr.lat, curr.lng).distanceTo(L.latLng(p.lat, p.lng));
+                    if(d < minDist) { minDist = d; nearestIdx = i; }
+                });
+                ordered.push(unvisited.splice(nearestIdx, 1)[0]);
+            }
+            let indices = daysData[currentDay].map((item, idx) => selectedForOpt.has(item.id) ? idx : -1).filter(i => i !== -1);
+            indices.forEach((originalIdx, i) => { daysData[currentDay][originalIdx] = ordered[i]; });
+            alert("✅ 路线已优化完毕！"); toggleOptimizeMode(); updateUI();
+        };
+
+        function initSearch() {
+            const input = document.getElementById('map-search'); const res = document.getElementById('search-results'); let timer;
+            input.addEventListener('input', (e) => {
+                clearTimeout(timer); const q = e.target.value; if(q.length < 1) { res.classList.add('hidden'); return; }
+                timer = setTimeout(async () => {
+                    const data = await (await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=5&addressdetails=1`)).json();
+                    res.innerHTML = data.map(it => {
+                        const mainName = it.display_name.split(',')[0]; const addr = it.display_name.replace(mainName + ',', '').trim();
+                        return `<div class="search-item p-3 border-b border-slate-50" onclick="addToLib('${mainName.replace(/'/g,"")}', '${addr.replace(/'/g,"")}', ${it.lon}, ${it.lat})"><div class="font-bold text-xs text-slate-800">${mainName}</div><div class="text-[10px] text-slate-400 truncate mt-0.5">${addr}</div></div>`;
+                    }).join(''); res.classList.remove('hidden');
+                }, 400);
+            });
+        }
+        window.addToLib = (n, a, lng, lat) => { poiLibrary.unshift({ id: Date.now().toString(), name: n, addr: a, lng, lat, cat: 'sight' }); renderLibrary(); document.getElementById('search-results').classList.add('hidden'); document.getElementById('map-search').value = ""; };
+        window.addToDay = (id) => { const libItem = poiLibrary.find(x => x.id === id); const slot = (libItem.cat === 'hotel') ? 'evening' : 'morning'; daysData[currentDay].push({ ...libItem, id: Date.now().toString(), slot, cost: 0, duration: 60, note: "", img: "" }); updateUI(); };
+        window.renderLibrary = () => { document.getElementById('library-list').innerHTML = poiLibrary.map(p => `<div class="p-3 border rounded-xl bg-white hover:shadow-md transition group"><div class="flex justify-between items-start"><div class="w-full"><h4 class="font-bold text-xs text-slate-700 truncate">${p.name}</h4><p class="text-[10px] text-slate-400 truncate mt-0.5">${p.addr || ''}</p></div></div><button onclick="addToDay('${p.id}')" class="mt-2 w-full py-1.5 bg-slate-900 text-white rounded-lg text-[10px] font-bold hover:bg-indigo-600 transition opacity-80 group-hover:opacity-100">Add to D${currentDay+1}</button></div>`).join(''); };
+        window.copyToNextDay = (id) => { const item = JSON.parse(JSON.stringify(daysData[currentDay].find(x => x.id === id))); item.id = Date.now().toString(); if (currentDay + 1 >= daysData.length) { daysData.push([]); renderDays(); } daysData[currentDay + 1].unshift(item); alert("已复制到下一天"); };
+        window.removeItem = (id) => { daysData[currentDay] = daysData[currentDay].filter(x => x.id !== id); updateUI(); };
+        window.closeModal = () => document.getElementById('edit-modal').classList.add('hidden');
+        window.closeOverview = () => document.getElementById('overview-modal').classList.add('hidden');
+        window.setEditCat = (c) => { tempCat = c; document.querySelectorAll('.cat-btn').forEach(b => b.className = (b.dataset.cat === c) ? "cat-btn p-2 rounded-xl text-[10px] font-bold border-2 border-indigo-600 bg-indigo-50 text-indigo-600" : "cat-btn p-2 rounded-xl text-[10px] font-bold border border-slate-200 bg-slate-50 text-slate-400"); };
+        window.saveToLocal = () => { localStorage.setItem('travel_v10_days', JSON.stringify(daysData)); localStorage.setItem('travel_v10_lib', JSON.stringify(poiLibrary)); localStorage.setItem('travel_v10_start', startDate); };
+        function getDayDate(idx) { const d = new Date(startDate); d.setDate(d.getDate() + idx); return d.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric', weekday: 'short' }); }
+        window.updateDates = () => { startDate = document.getElementById('start-date').value; updateUI(); renderDays(); };
+        window.addDay = () => { daysData.push([]); renderDays(); switchDay(daysData.length-1); };
+        window.switchDay = (i) => { currentDay = i; updateUI(); renderDays(); };
+        window.renderDays = () => { document.getElementById('day-selector').innerHTML = daysData.map((_, i) => `<button onclick="switchDay(${i})" class="w-8 h-8 rounded-lg text-[10px] font-black border transition-all shrink-0 ${i===currentDay?'active-day border-indigo-600':'bg-white text-slate-300 border-slate-200'}">${i+1}</button>`).join(''); };
     </script>
-
 </body>
 </html>
-
-
-
-</body>
-</html>
-
